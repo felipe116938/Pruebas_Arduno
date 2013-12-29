@@ -1,61 +1,77 @@
    
-    const int trigger1=10; // Pin de disparo del primer contador
-    const int echo1=13; // Pin de medida del eco del primer contador
+    #define trigger1 10 //trigger1=10; // Pin de disparo del primer contador
+    #define echo1 13 // Pin de medida del eco del primer contador
     
-    const int trigger2=9; // Pin de disparo del segundo contador
-    const int echo2=12; // Pin de medida del eco del segundo contador
-     
-    void setup(){
+    #define trigger2 9 // Pin de disparo del segundo contador
+    #define echo2 12 // Pin de medida del eco del segundo contador
+    
+    #define coche 1
+    #define no_coche 0
+    
+    struct sensor_coche
+    {
+      int trigger_pin;
+      int echo_pin;
+      boolean estado; //0 - no hay coche  1 si hay
+      byte filtro;  //para detectar flancos coche/no coche
+      float umbral;  // distancia máxima que indica que hay coche
+    };    
+    
+    struct sensor_coche s_coche1;
+    struct sensor_coche s_coche2;
+    
+    void inicializa_sensor(struct sensor_coche * sc, int trigger_pin, int echo_pin)
+    {
+      sc->estado = 0;
+      sc->filtro = 255;
+      sc->umbral = 600.0; // Al imprlementar puede que haya que diferenciar un coche de otro
+      sc->trigger_pin = trigger_pin;
+      sc->echo_pin = echo_pin;
+    }
+    
+    void setup()
+    {
       Serial.begin(9600);
       pinMode(trigger1,OUTPUT);
       pinMode(echo1,INPUT);
       pinMode(trigger2,OUTPUT);
       pinMode(echo2,INPUT);
+      inicializa_sensor(& s_coche1,trigger1,echo1);
+      inicializa_sensor(& s_coche2,trigger2,echo2);
     }
     
-    float leeSensor(const int sensor, const int eco)
-    {
-      float distance;
-      digitalWrite(sensor,LOW);
+
+    float leeSensor(struct sensor_coche * s_coche)
+    { 
+      digitalWrite(s_coche->trigger_pin,LOW);
       delayMicroseconds(5);
-       // Comenzamos las mediciones
-      // Enviamos una señal activando la salida trigger durante 10 microsegundos
-      digitalWrite(sensor,HIGH);
+      // Comenzamos las mediciones. Enviamos una señal activando la salida trigger durante 10 microsegundos
+      digitalWrite(s_coche->trigger_pin,HIGH);
       delayMicroseconds(10);
-      digitalWrite(sensor,LOW);
-    // Adquirimos los datos y convertimos la medida a metros
-     distance=pulseIn(eco,HIGH); // Medimos el ancho del pulso (microsegundos)
-     return distance; //*0.0001657;  distancia en metros  (*0.0001657)
+      digitalWrite(s_coche->trigger_pin,LOW);
+      // distance=pulseIn(eco,HIGH); // Medimos el ancho del pulso (microsegundos) 
+      return pulseIn(s_coche->echo_pin,HIGH); //*0.0001657;  distancia en metros  (*0.0001657)
     }
      
-    void loop(){
-//     unsigned long inicio=millis();
-//Inicializamos el sensor
-//    int *pp = (int*)malloc(sizeof(int));
-//   struct
-//    {
-//      int m;
-//      byte jj;
-//    }lpij;
-    
-    
-/*    
-      digitalWrite(trigger1,LOW);
-      delayMicroseconds(5);
-    // Comenzamos las mediciones
-    // Enviamos una señal activando la salida trigger durante 10 microsegundos
-      digitalWrite(trigger1,HIGH);
-      delayMicroseconds(10);
-      digitalWrite(trigger1,LOW);
-    // Adquirimos los datos y convertimos la medida a metros
-     distance1=pulseIn(echo,HIGH); // Medimos el ancho del pulso
-                                  // (Cuando la lectura del pin sea HIGH medira
-                                  // el tiempo que transcurre hasta que sea LOW
-      
-     distance1=distance1*0.0001657;*/
-    // Enviamos los datos medidos a traves del puerto serie y al display LCD
-      Serial.println(leeSensor(trigger1, echo1)); 
-      Serial.println(leeSensor(trigger2, echo2));
-      delay(100);
- //     Serial.println(millis()-inicio);
+    void loop()
+    {
+      float distancia = leeSensor(& s_coche1);
+      byte flag =  (distancia < s_coche1.umbral) ? 1 : 0;
+      // Enviamos los datos medidos a traves del puerto serie      
+      Serial.println(distancia);
+      s_coche1.filtro <<= 1;
+      s_coche1.filtro += flag;
+      s_coche1.filtro &= 0x7;
+      if(s_coche1.filtro  == 7)
+        s_coche1.estado = coche;
+      else if(s_coche1.filtro  == 0)
+        s_coche1.estado = no_coche;
+
+      Serial.print("Filtro: ");
+      Serial.println(s_coche1.filtro); 
+      Serial.print("Estado: ");
+      Serial.println(s_coche1.estado);
+//      Serial.println(leeSensor(& s_coche2));
+      //delay(100);
+      delay(1000);
     }
